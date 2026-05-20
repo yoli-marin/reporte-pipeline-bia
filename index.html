@@ -88,7 +88,7 @@
       padding: 0 24px;
     }
     .tab-btn {
-      padding: 14px 24px;
+      padding: 14px 18px;
       background: none;
       border: none;
       border-bottom: 3px solid transparent;
@@ -587,6 +587,7 @@
   <button class="tab-btn" onclick="switchTab('todos', this)">Todos los Deals</button>
   <button class="tab-btn" onclick="switchTab('variacion', this)">Mayor Variación</button>
   <button class="tab-btn" onclick="switchTab('simulador', this); initSimulador()">Simulador</button>
+  <button class="tab-btn" onclick="switchTab('fronteras', this); initFronterasTab()">Fronteras</button>
 </div>
 
 <!-- ═══════════════════════════════════════
@@ -929,6 +930,100 @@
 <footer>
   Generado el <strong>2026-05-19</strong> · Datos: <strong>HubSpot CRM</strong> · Pipeline <strong>Sales MR</strong> · Excluye MNR
 </footer>
+
+<!-- ═══════════════════════════════════════
+     TAB 5: FRONTERAS
+════════════════════════════════════════ -->
+<div id="tab-fronteras" class="tab-panel">
+<main>
+
+  <!-- Header row -->
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px">
+    <div class="section-title" style="margin-bottom:0">Detalle de Fronteras / Sedes</div>
+    <button class="sim-btn sim-btn-primary" onclick="downloadAllFronterasExcel()" style="gap:6px;display:inline-flex;align-items:center">
+      ⬇ Descargar Excel
+    </button>
+  </div>
+
+  <!-- KPI bar -->
+  <div class="sim-kpi-grid" style="margin-bottom:20px" id="ftKpiGrid">
+    <div class="sim-kpi highlight">
+      <div class="sim-kpi-label">Total Fronteras</div>
+      <div class="sim-kpi-value" id="ftKpiTotal">—</div>
+      <div class="sim-kpi-unit">sedes activas</div>
+    </div>
+    <div class="sim-kpi">
+      <div class="sim-kpi-label">Deals con Fronteras</div>
+      <div class="sim-kpi-value" id="ftKpiDeals">—</div>
+      <div class="sim-kpi-unit" id="ftKpiDealsUnit">de 125 deals</div>
+    </div>
+    <div class="sim-kpi">
+      <div class="sim-kpi-label">Consumo Total</div>
+      <div class="sim-kpi-value" id="ftKpiKwh">—</div>
+      <div class="sim-kpi-unit">kWh/mes</div>
+    </div>
+    <div class="sim-kpi">
+      <div class="sim-kpi-label">Payback Prom. Fronteras</div>
+      <div class="sim-kpi-value danger" id="ftKpiPB">—</div>
+      <div class="sim-kpi-unit">meses</div>
+    </div>
+    <div class="sim-kpi">
+      <div class="sim-kpi-label">Operadores únicos</div>
+      <div class="sim-kpi-value" id="ftKpiOps">—</div>
+      <div class="sim-kpi-unit">operadores de red</div>
+    </div>
+  </div>
+
+  <!-- Filters -->
+  <div class="filter-bar" style="margin-bottom:14px;flex-wrap:wrap">
+    <input type="text" id="ftSearch" placeholder="Buscar por deal, frontera, ciudad…" oninput="renderFronterasTab()" style="flex:2;min-width:200px" />
+    <select id="ftFiltOp" onchange="renderFronterasTab()">
+      <option value="">Todos los operadores</option>
+    </select>
+    <select id="ftFiltMkt" onchange="renderFronterasTab()">
+      <option value="">Todos los mercados</option>
+      <option value="regulated">Regulado</option>
+      <option value="non-regulated">No Regulado</option>
+    </select>
+    <select id="ftFiltKAM" onchange="renderFronterasTab()">
+      <option value="">Todos los KAMs</option>
+    </select>
+    <button class="btn-clear" onclick="clearFronterasFilters()">Limpiar</button>
+  </div>
+
+  <div class="row-count" id="ftRowCount">Cargando fronteras…</div>
+
+  <!-- Table -->
+  <div class="table-card">
+    <div id="ftLoading" class="loading-state">
+      <div class="loading-spinner"></div>
+      <div>Cargando fronteras…</div>
+    </div>
+    <div style="overflow-x:auto" id="ftTableWrap" style="display:none">
+      <table class="frontera-table" id="ftTable" style="display:none">
+        <thead>
+          <tr>
+            <th>Deal</th>
+            <th>Etapa</th>
+            <th>KAM</th>
+            <th>Frontera / Sede</th>
+            <th>ID Medidor</th>
+            <th>Ciudad</th>
+            <th>Departamento</th>
+            <th>Operador de Red</th>
+            <th class="num">Consumo<br>(kWh/mes)</th>
+            <th class="num">Payback<br>(meses)</th>
+            <th>Mercado</th>
+            <th>Tensión</th>
+          </tr>
+        </thead>
+        <tbody id="ftTableBody"></tbody>
+      </table>
+    </div>
+  </div>
+
+</main>
+</div>
 
 <!-- ═══════════════════════════════════════
      AUTH OVERLAY
@@ -1676,6 +1771,173 @@ function selectAllSim(include) {
   else allDeals.forEach(d => simExcluded.add(d.id));
   renderSimTable();
   recalcSim();
+}
+
+/* ── FRONTERAS TAB ── */
+let _ftRows = [];      // flat array of all frontera rows (with deal info merged)
+let _ftInited = false;
+
+function initFronterasTab() {
+  if (_ftInited) { renderFronterasTab(); return; }
+
+  // Wait until both data sources are ready
+  const ready = () => Object.keys(fronterasData).length > 0 && allDeals.length > 0;
+  if (!ready()) {
+    setTimeout(() => { if (ready()) initFronterasTab(); else setTimeout(initFronterasTab, 400); }, 200);
+    return;
+  }
+
+  // Build deal lookup map
+  const dealMap = {};
+  allDeals.forEach(d => { dealMap[String(d.id)] = d; });
+
+  // Flatten all fronteras
+  _ftRows = [];
+  Object.entries(fronterasData).forEach(([did, fList]) => {
+    const deal = dealMap[did] || {};
+    fList.filter(f => String(f.archived) !== 'true').forEach(f => {
+      _ftRows.push({ ...f, _dealId: did, _dealName: deal.deal || did,
+        _etapa: deal.etapa || '', _kam: deal.kam || '', _link: deal.link || '' });
+    });
+  });
+
+  // Populate operator filter
+  const ops = [...new Set(_ftRows.map(r => r.grid_operator).filter(Boolean))].sort();
+  const opSel = document.getElementById('ftFiltOp');
+  ops.forEach(op => { const o = document.createElement('option'); o.value = op; o.textContent = op; opSel.appendChild(o); });
+
+  // Populate KAM filter
+  const kams = [...new Set(_ftRows.map(r => r._kam).filter(Boolean))].sort();
+  const kamSel = document.getElementById('ftFiltKAM');
+  kams.forEach(k => { const o = document.createElement('option'); o.value = k; o.textContent = k; kamSel.appendChild(o); });
+
+  // KPIs
+  const totalKwh = _ftRows.reduce((s, r) => s + (parseFloat(r.average_monthly_kwh) || 0), 0);
+  const pbRows   = _ftRows.filter(r => { const v = parseFloat(r.payback_meter); return v > 0 && v <= 500; });
+  const avgPB    = pbRows.length ? pbRows.reduce((s,r)=>s+parseFloat(r.payback_meter),0)/pbRows.length : null;
+  const dealsWithF = new Set(_ftRows.map(r => r._dealId)).size;
+  const totalDeals = Object.keys(fronterasData).length;
+  const uniqueOps  = ops.length;
+
+  document.getElementById('ftKpiTotal').textContent   = _ftRows.length.toLocaleString('es-CO');
+  document.getElementById('ftKpiDeals').textContent   = dealsWithF;
+  document.getElementById('ftKpiDealsUnit').textContent = `de ${totalDeals} deals totales`;
+  document.getElementById('ftKpiKwh').textContent     = totalKwh.toLocaleString('es-CO', {maximumFractionDigits:0});
+  document.getElementById('ftKpiPB').textContent      = avgPB != null ? avgPB.toFixed(1) : '—';
+  document.getElementById('ftKpiOps').textContent     = uniqueOps;
+
+  document.getElementById('ftLoading').style.display = 'none';
+  document.getElementById('ftTableWrap').style.display = '';
+  document.getElementById('ftTable').style.display = '';
+  _ftInited = true;
+  renderFronterasTab();
+}
+
+function renderFronterasTab() {
+  const q    = (document.getElementById('ftSearch').value || '').toLowerCase();
+  const op   = document.getElementById('ftFiltOp').value;
+  const mkt  = document.getElementById('ftFiltMkt').value;
+  const kam  = document.getElementById('ftFiltKAM').value;
+
+  const filtered = _ftRows.filter(r => {
+    if (op  && r.grid_operator !== op) return false;
+    if (mkt && r.market_type   !== mkt) return false;
+    if (kam && r._kam          !== kam) return false;
+    if (q) {
+      const hay = [r._dealName, r.meter_name, r.city, r.state, r.grid_operator, r.meter_id].join(' ').toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+
+  document.getElementById('ftRowCount').textContent =
+    `Mostrando ${filtered.length.toLocaleString('es-CO')} frontera${filtered.length !== 1 ? 's' : ''}`;
+
+  const tbody = document.getElementById('ftTableBody');
+  tbody.innerHTML = '';
+  filtered.forEach(r => {
+    const kwh  = parseFloat(r.average_monthly_kwh);
+    const pb   = parseFloat(r.payback_meter);
+    const mktL = r.market_type === 'regulated'     ? '<span class="mkt-badge mkt-reg">Reg.</span>'
+               : r.market_type === 'non-regulated' ? '<span class="mkt-badge mkt-nr">No Reg.</span>'
+               : (r.market_type || '—');
+    const volt = r.voltage_level === 'level_1' ? '<span class="volt-badge">N1</span>'
+               : r.voltage_level === 'level_2' ? '<span class="volt-badge">N2</span>'
+               : (r.voltage_level || '—');
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td><a href="${r._link||'#'}" target="_blank" style="color:var(--blue);font-weight:500;text-decoration:none">${r._dealName}</a></td>
+      <td style="font-size:11px;color:var(--muted)">${r._etapa}</td>
+      <td style="font-size:11px">${r._kam}</td>
+      <td>
+        <div style="font-weight:500;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(r.meter_name||'').replace(/"/g,"'")}">${r.meter_name||'—'}</div>
+        <div style="font-size:10px;color:var(--muted)">${r.meter_id||''}</div>
+      </td>
+      <td style="font-size:11px;color:var(--muted)">${r.meter_id||'—'}</td>
+      <td>${r.city||'—'}</td>
+      <td>${r.state||'—'}</td>
+      <td style="font-weight:600;color:var(--blue)">${r.grid_operator||'—'}</td>
+      <td class="num">${!isNaN(kwh) ? kwh.toLocaleString('es-CO',{maximumFractionDigits:1}) : '—'}</td>
+      <td class="num">${!isNaN(pb) && pb > 0 ? pb.toFixed(1) : '—'}</td>
+      <td>${mktL}</td>
+      <td>${volt}</td>`;
+    tbody.appendChild(tr);
+  });
+
+  // Store filtered for Excel
+  window._ftFiltered = filtered;
+}
+
+function clearFronterasFilters() {
+  document.getElementById('ftSearch').value = '';
+  document.getElementById('ftFiltOp').value = '';
+  document.getElementById('ftFiltMkt').value = '';
+  document.getElementById('ftFiltKAM').value = '';
+  renderFronterasTab();
+}
+
+function downloadAllFronterasExcel() {
+  const rows = window._ftFiltered || _ftRows;
+  if (!rows || !rows.length) return;
+
+  const wb = XLSX.utils.book_new();
+
+  // Summary sheet
+  const totalKwh = rows.reduce((s,r)=>s+(parseFloat(r.average_monthly_kwh)||0),0);
+  const pbR = rows.filter(r=>parseFloat(r.payback_meter)>0);
+  const avgPB = pbR.length ? pbR.reduce((s,r)=>s+parseFloat(r.payback_meter),0)/pbR.length : null;
+  const uniqueOps = [...new Set(rows.map(r=>r.grid_operator).filter(Boolean))];
+  const wsSummary = XLSX.utils.aoa_to_sheet([
+    ['Exportación Fronteras — Bia Pipeline Analytics'],
+    ['Fecha', new Date().toLocaleDateString('es-CO')],
+    ['Total fronteras exportadas', rows.length],
+    ['Consumo total (kWh/mes)', totalKwh],
+    ['Payback promedio (meses)', avgPB != null ? parseFloat(avgPB.toFixed(2)) : 'N/A'],
+    ['Operadores únicos', uniqueOps.join(', ')],
+  ]);
+  wsSummary['!cols'] = [{wch:35},{wch:40}];
+  XLSX.utils.book_append_sheet(wb, wsSummary, 'Resumen');
+
+  // Detail sheet
+  const headers = ['Deal', 'Etapa', 'KAM', 'Frontera / Sede', 'ID Medidor',
+                   'Ciudad', 'Departamento', 'Operador de Red',
+                   'Consumo (kWh/mes)', 'Payback (meses)', 'Mercado', 'Tensión', 'ID Frontera'];
+  const data = rows.map(r => {
+    const kwh = parseFloat(r.average_monthly_kwh);
+    const pb  = parseFloat(r.payback_meter);
+    const mkt = r.market_type === 'regulated' ? 'Regulado' : r.market_type === 'non-regulated' ? 'No Regulado' : (r.market_type||'');
+    const volt = r.voltage_level === 'level_1' ? 'Nivel 1' : r.voltage_level === 'level_2' ? 'Nivel 2' : (r.voltage_level||'');
+    return [r._dealName, r._etapa, r._kam, r.meter_name||'', r.meter_id||'',
+            r.city||'', r.state||'', r.grid_operator||'',
+            !isNaN(kwh)?kwh:'', !isNaN(pb)&&pb>0?parseFloat(pb.toFixed(2)):'',
+            mkt, volt, r.frontera_id||r.id||''];
+  });
+  const wsDetail = XLSX.utils.aoa_to_sheet([headers, ...data]);
+  wsDetail['!cols'] = [{wch:35},{wch:25},{wch:30},{wch:35},{wch:18},
+                       {wch:20},{wch:20},{wch:25},{wch:18},{wch:16},{wch:14},{wch:10},{wch:18}];
+  XLSX.utils.book_append_sheet(wb, wsDetail, 'Fronteras');
+
+  XLSX.writeFile(wb, `Fronteras_Pipeline_Bia_${new Date().toISOString().slice(0,10)}.xlsx`);
 }
 
 /* ── AUTH (Google OAuth) ── */
