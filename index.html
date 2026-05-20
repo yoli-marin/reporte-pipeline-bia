@@ -1791,10 +1791,11 @@ function initFronterasTab() {
   const dealMap = {};
   allDeals.forEach(d => { dealMap[String(d.id)] = d; });
 
-  // Flatten all fronteras
+  // Flatten fronteras — solo los 125 deals del reporte
   _ftRows = [];
   Object.entries(fronterasData).forEach(([did, fList]) => {
-    const deal = dealMap[did] || {};
+    const deal = dealMap[did];
+    if (!deal) return;  // ignorar deals fuera del reporte
     fList.filter(f => String(f.archived) !== 'true').forEach(f => {
       _ftRows.push({ ...f, _dealId: did, _dealName: deal.deal || did,
         _etapa: deal.etapa || '', _kam: deal.kam || '', _link: deal.link || '' });
@@ -1816,7 +1817,7 @@ function initFronterasTab() {
   const pbRows   = _ftRows.filter(r => { const v = parseFloat(r.payback_meter); return v > 0 && v <= 500; });
   const avgPB    = pbRows.length ? pbRows.reduce((s,r)=>s+parseFloat(r.payback_meter),0)/pbRows.length : null;
   const dealsWithF = new Set(_ftRows.map(r => r._dealId)).size;
-  const totalDeals = Object.keys(fronterasData).length;
+  const totalDeals = allDeals.length;
   const uniqueOps  = ops.length;
 
   document.getElementById('ftKpiTotal').textContent   = _ftRows.length.toLocaleString('es-CO');
