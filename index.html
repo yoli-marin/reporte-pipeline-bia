@@ -531,6 +531,28 @@
     .sim-btn-danger { background: #FDEAEA; color: var(--red); border: 1px solid #F5C6C6; }
     .sim-btn-danger:hover { background: #F5C6C6; }
     .sim-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+    /* Quick-preset chips */
+    .sim-presets { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+    .sim-chip {
+      display: inline-flex; align-items: center; gap: 5px;
+      padding: 6px 14px; border-radius: 99px; font-size: 12px; font-weight: 600;
+      cursor: pointer; border: 1.5px solid; transition: all .15s; background: #fff;
+    }
+    .sim-chip-count { font-size: 11px; opacity: .75; font-weight: 500; }
+    .sim-chip-all   { border-color: var(--blue);  color: var(--blue); }
+    .sim-chip-high  { border-color: var(--amber); color: var(--amber); }
+    .sim-chip-crit  { border-color: var(--red);   color: var(--red); }
+    .sim-chip-top   { border-color: var(--green);  color: var(--green); }
+    .sim-chip.active { color: #fff !important; }
+    .sim-chip-all.active  { background: var(--blue);  border-color: var(--blue); }
+    .sim-chip-high.active { background: var(--amber); border-color: var(--amber); }
+    .sim-chip-crit.active { background: var(--red);   border-color: var(--red); }
+    .sim-chip-top.active  { background: var(--green); border-color: var(--green); }
+    /* View toggle select */
+    .sim-view-sel {
+      padding: 5px 10px; border: 1px solid var(--border); border-radius: 6px;
+      font-size: 12px; background: var(--bg); color: var(--text); cursor: pointer;
+    }
     .sim-kpi-grid {
       display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
       gap: 12px; margin-bottom: 20px;
@@ -819,26 +841,41 @@
 ════════════════════════════════════════ -->
 <div id="tab-simulador" class="tab-panel">
 <main>
-  <div class="section-title" style="margin-bottom:20px">Simulador de Escenarios</div>
+  <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:16px">
+    <div class="section-title" style="margin-bottom:0">Simulador de Escenarios</div>
+    <button class="sim-btn sim-btn-primary" onclick="downloadSimExcel()" style="display:inline-flex;align-items:center;gap:6px">⬇ Descargar Excel</button>
+  </div>
 
   <!-- Controls -->
   <div class="sim-controls">
+
+    <!-- Quick preset chips -->
+    <div style="margin-bottom:4px;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.5px">Vista rápida</div>
+    <div class="sim-presets" id="simPresets">
+      <button id="simChipAll"  class="sim-chip sim-chip-all active"  onclick="applyPreset('all')">📋 Todos <span class="sim-chip-count" id="chipCountAll"></span></button>
+      <button id="simChipHigh" class="sim-chip sim-chip-high"        onclick="applyPreset('high')">🟠 Variación &gt; 6m <span class="sim-chip-count" id="chipCountHigh"></span></button>
+      <button id="simChipCrit" class="sim-chip sim-chip-crit"        onclick="applyPreset('crit')">🔴 Críticos &gt; 12m <span class="sim-chip-count" id="chipCountCrit"></span></button>
+      <button id="simChipTop"  class="sim-chip sim-chip-top"         onclick="applyPreset('top10')">⚡ Top 10 mayor Δ</button>
+    </div>
+
+    <!-- Manual filters — auto-apply -->
+    <div style="margin-bottom:4px;font-size:11px;font-weight:700;text-transform:uppercase;color:var(--muted);letter-spacing:.5px">Filtros manuales</div>
     <div class="sim-filter-grid">
       <div class="sim-filter-field">
-        <label>Payback Actual &gt; (meses)</label>
-        <input type="number" id="simFPBAct" min="0" max="200" step="0.5" placeholder="Ej: 15">
+        <label>Δ Payback mín. (meses)</label>
+        <input type="number" id="simFDelta" min="0" max="200" step="0.5" placeholder="Ej: 6" oninput="applySimFilters();clearPresetChips()">
       </div>
       <div class="sim-filter-field">
-        <label>Δ Payback &gt; (meses)</label>
-        <input type="number" id="simFDelta" min="0" max="200" step="0.5" placeholder="Ej: 6">
+        <label>Payback Actual mín.</label>
+        <input type="number" id="simFPBAct" min="0" max="200" step="0.5" placeholder="Ej: 15" oninput="applySimFilters();clearPresetChips()">
       </div>
       <div class="sim-filter-field">
-        <label>% Cambio &gt; (%)</label>
-        <input type="number" id="simFPct" min="0" max="10000" step="1" placeholder="Ej: 50">
+        <label>% Cambio mín.</label>
+        <input type="number" id="simFPct" min="0" max="10000" step="1" placeholder="Ej: 50" oninput="applySimFilters();clearPresetChips()">
       </div>
       <div class="sim-filter-field">
         <label>Etapa</label>
-        <select id="simFEtapa">
+        <select id="simFEtapa" onchange="applySimFilters();clearPresetChips()">
           <option value="">Todas las etapas</option>
           <option>Análisis comercial</option>
           <option>Documentos para firma</option>
@@ -847,17 +884,24 @@
       </div>
       <div class="sim-filter-field">
         <label>KAM</label>
-        <select id="simFKAM">
+        <select id="simFKAM" onchange="applySimFilters();clearPresetChips()">
           <option value="">Todos los KAMs</option>
         </select>
       </div>
     </div>
+
     <div class="sim-actions">
-      <button class="sim-btn sim-btn-primary" onclick="applySimFilters()">Aplicar filtros</button>
       <button class="sim-btn sim-btn-secondary" onclick="resetSim()">↺ Restablecer</button>
       <span style="width:1px;height:20px;background:var(--border);display:inline-block"></span>
       <button class="sim-btn sim-btn-secondary" onclick="selectAllSim(true)">✓ Incluir todos</button>
       <button class="sim-btn sim-btn-danger" onclick="selectAllSim(false)">✗ Excluir todos</button>
+      <span style="width:1px;height:20px;background:var(--border);display:inline-block"></span>
+      <label style="font-size:12px;color:var(--muted);font-weight:600">Ver en tabla:</label>
+      <select class="sim-view-sel" id="simViewSel" onchange="simViewMode=this.value;renderSimTable()">
+        <option value="all">Todos</option>
+        <option value="included">Solo incluidos</option>
+        <option value="excluded">Solo excluidos</option>
+      </select>
     </div>
   </div>
 
@@ -919,6 +963,7 @@
           <th onclick="sortDynamicTable('simTable',6)" class="num">PB Anterior</th>
           <th onclick="sortDynamicTable('simTable',7)" class="num">Δ Payback</th>
           <th onclick="sortDynamicTable('simTable',8)" class="num">% Cambio</th>
+          <th style="text-align:center">Sedes</th>
         </tr>
       </thead>
       <tbody id="simTableBody"></tbody>
@@ -1007,14 +1052,24 @@
             <th>Etapa</th>
             <th>KAM</th>
             <th>Frontera / Sede</th>
-            <th>ID Medidor</th>
             <th>Ciudad</th>
             <th>Departamento</th>
             <th>Operador de Red</th>
+            <th>Comercializador</th>
             <th class="num">Consumo<br>(kWh/mes)</th>
             <th class="num">Payback<br>(meses)</th>
             <th>Mercado</th>
             <th>Tensión</th>
+            <th>Factor</th>
+            <th>Prop. Activos</th>
+            <th class="num">Costo<br>Instalación</th>
+            <th class="num">Costo<br>Equipos</th>
+            <th class="num">Costo<br>Adquisición</th>
+            <th class="num">Costo<br>Intereses</th>
+            <th class="num">Equipos +<br>Intereses</th>
+            <th class="num">Inversión<br>Cliente</th>
+            <th style="text-align:center">Renting</th>
+            <th class="num">Costo Mensual<br>Renting</th>
           </tr>
         </thead>
         <tbody id="ftTableBody"></tbody>
@@ -1636,26 +1691,129 @@ new Chart(document.getElementById('chartPBComparativo'), {
 
 /* ── SIMULADOR ── */
 let simInitialized = false;
-let simExcluded = new Set(); // IDs de deals excluidos
+let simExcluded = new Set();
+let simViewMode = 'all'; // 'all' | 'included' | 'excluded'
 
 function initSimulador() {
   if (simInitialized || !allDeals.length) return;
   simInitialized = true;
+
+  // Sort by Δ Payback descending by default
+  allDeals.sort((a, b) => (b.delta_pb || 0) - (a.delta_pb || 0));
+
+  // Populate KAM filter
+  const kams = [...new Set(allDeals.map(d => d.kam).filter(Boolean))].sort();
+  const sel = document.getElementById('simFKAM');
+  kams.forEach(k => { const o = document.createElement('option'); o.value = k; o.textContent = k; sel.appendChild(o); });
+
+  // Update chip counts
+  document.getElementById('chipCountAll').textContent  = `(${allDeals.length})`;
+  const high = allDeals.filter(d => d.delta_pb > 6).length;
+  const crit = allDeals.filter(d => d.delta_pb > 12).length;
+  document.getElementById('chipCountHigh').textContent = `(${high})`;
+  document.getElementById('chipCountCrit').textContent = `(${crit})`;
+
   renderSimTable();
   recalcSim();
   document.getElementById('simLoading').style.display = 'none';
   document.getElementById('simTable').style.display = '';
 }
 
+/* ── PRESET CHIPS ── */
+function applyPreset(type) {
+  simExcluded.clear();
+  ['simFPBAct','simFDelta','simFPct'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('simFEtapa').value = '';
+  document.getElementById('simFKAM').value = '';
+
+  if (type === 'all') {
+    simViewMode = 'all';
+  } else {
+    simViewMode = 'included'; // auto-filtra la tabla a solo los incluidos
+    if (type === 'high') {
+      allDeals.forEach(d => { if ((d.delta_pb || 0) <= 6)  simExcluded.add(d.id); });
+    } else if (type === 'crit') {
+      allDeals.forEach(d => { if ((d.delta_pb || 0) <= 12) simExcluded.add(d.id); });
+    } else if (type === 'top10') {
+      const sorted = allDeals.slice().sort((a,b)=>(b.delta_pb||0)-(a.delta_pb||0));
+      const topIds = new Set(sorted.slice(0,10).map(d=>d.id));
+      allDeals.forEach(d => { if (!topIds.has(d.id)) simExcluded.add(d.id); });
+    }
+  }
+  const sel = document.getElementById('simViewSel');
+  if (sel) sel.value = simViewMode;
+  document.querySelectorAll('.sim-chip').forEach(c => c.classList.remove('active'));
+  const map = {all:'simChipAll', high:'simChipHigh', crit:'simChipCrit', top10:'simChipTop'};
+  if (map[type]) document.getElementById(map[type]).classList.add('active');
+  renderSimTable();
+  recalcSim();
+}
+
+function clearPresetChips() {
+  document.querySelectorAll('.sim-chip').forEach(c => c.classList.remove('active'));
+}
+
+/* ── EXCEL DOWNLOAD (SIMULADOR) ── */
+function downloadSimExcel() {
+  const included = allDeals.filter(d => !simExcluded.has(d.id));
+  if (!included.length) return;
+  const wb = XLSX.utils.book_new();
+
+  const avgArr = arr => arr.length ? arr.reduce((s,v)=>s+v,0)/arr.length : null;
+  const pbActs = included.filter(d=>d.pb_actual!=null).map(d=>d.pb_actual);
+  const pbAnts = included.filter(d=>d.pb_anterior!=null).map(d=>d.pb_anterior);
+  const avgAct = avgArr(pbActs), avgAnt = avgArr(pbAnts);
+  const consumo = included.reduce((s,d)=>s+(d.consumo_mensual||0),0);
+  const varSig  = included.filter(d=>d.delta_pb>6).length;
+
+  const wsSummary = XLSX.utils.aoa_to_sheet([
+    ['Simulador Pipeline Bia — Exportación'],
+    ['Fecha', new Date().toLocaleDateString('es-CO')],
+    ['Deals incluidos', included.length],
+    ['Deals excluidos', allDeals.length - included.length],
+    ['Payback prom. actual (meses)', avgAct!=null ? parseFloat(avgAct.toFixed(2)) : 'N/A'],
+    ['Payback prom. anterior (meses)', avgAnt!=null ? parseFloat(avgAnt.toFixed(2)) : 'N/A'],
+    ['Δ Payback promedio (meses)', (avgAct!=null&&avgAnt!=null) ? parseFloat((avgAct-avgAnt).toFixed(2)) : 'N/A'],
+    ['Consumo total (kWh/mes)', consumo],
+    ['Deals con variación > 6m', varSig],
+  ]);
+  wsSummary['!cols'] = [{wch:35},{wch:25}];
+  XLSX.utils.book_append_sheet(wb, wsSummary, 'Resumen');
+
+  const headers = ['Deal','Etapa','KAM','Consumo (kWh/mes)','PB Actual (m)','PB Anterior (m)','Δ Payback (m)','% Cambio','Observaciones'];
+  const rows = included.map(d => [
+    d.deal, d.etapa||'', d.kam||'',
+    d.consumo_mensual||'',
+    d.pb_actual!=null ? d.pb_actual : '',
+    d.pb_anterior!=null ? d.pb_anterior : '',
+    d.delta_pb!=null ? d.delta_pb : '',
+    d.pct_pb!=null ? parseFloat((d.pct_pb).toFixed(3)) : '',
+    d.obs||''
+  ]);
+  const wsDeals = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  wsDeals['!cols'] = [{wch:40},{wch:25},{wch:30},{wch:18},{wch:14},{wch:16},{wch:14},{wch:12},{wch:40}];
+  XLSX.utils.book_append_sheet(wb, wsDeals, 'Deals');
+
+  XLSX.writeFile(wb, `Simulador_Bia_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+
 function renderSimTable() {
   const tbody = document.getElementById('simTableBody');
   tbody.innerHTML = '';
+  let shown = 0;
   allDeals.forEach(d => {
     const excluded = simExcluded.has(d.id);
+    if (simViewMode === 'included' && excluded)  return;
+    if (simViewMode === 'excluded' && !excluded) return;
+    shown++;
     const tr = document.createElement('tr');
     tr.id = 'sim-row-' + d.id;
     tr.dataset.dealId = d.id;
     tr.className = 'row-clickable' + (excluded ? ' sim-excluded' : '');
+    const sedesCount = (fronterasData[d.id] || []).filter(f => String(f.archived) !== 'true').length;
+    const sedesLabel = sedesCount > 0
+      ? `<button class="sedes-btn" onclick="event.stopPropagation();openFronterasDrawer('${d.id}',this)">📍 ${sedesCount}</button>`
+      : `<span style="font-size:11px;color:var(--muted)">—</span>`;
     tr.innerHTML = `
       <td style="text-align:center" onclick="event.stopPropagation()">
         <input type="checkbox" class="sim-cb" ${excluded ? '' : 'checked'}
@@ -1668,10 +1826,17 @@ function renderSimTable() {
       <td class="num pb-bad">${fmtPB(d.pb_actual)}</td>
       <td class="num pb-ok">${fmtPB(d.pb_anterior)}</td>
       <td class="num">${deltaBadge(d.delta_pb)}</td>
-      <td class="num">${fmtPct(d.pct_pb)}</td>`;
+      <td class="num">${fmtPct(d.pct_pb)}</td>
+      <td style="text-align:center">${sedesLabel}</td>`;
     tr.addEventListener('click', () => openFronterasDrawer(d.id, tr));
     tbody.appendChild(tr);
   });
+  // Update view selector label
+  const sel = document.getElementById('simViewSel');
+  if (sel) {
+    const opts = {all: `Todos (${allDeals.length})`, included: `Solo incluidos`, excluded: `Solo excluidos`};
+    [...sel.options].forEach(o => { if (opts[o.value]) o.text = opts[o.value]; });
+  }
 }
 
 function toggleSimDeal(id, included) {
@@ -1759,9 +1924,15 @@ function applySimFilters() {
 
 function resetSim() {
   simExcluded.clear();
+  simViewMode = 'all';
   ['simFPBAct','simFDelta','simFPct'].forEach(id => document.getElementById(id).value = '');
   document.getElementById('simFEtapa').value = '';
   document.getElementById('simFKAM').value = '';
+  const sel = document.getElementById('simViewSel');
+  if (sel) sel.value = 'all';
+  document.querySelectorAll('.sim-chip').forEach(c => c.classList.remove('active'));
+  const all = document.getElementById('simChipAll');
+  if (all) all.classList.add('active');
   renderSimTable();
   recalcSim();
 }
@@ -1865,23 +2036,44 @@ function renderFronterasTab() {
     const volt = r.voltage_level === 'level_1' ? '<span class="volt-badge">N1</span>'
                : r.voltage_level === 'level_2' ? '<span class="volt-badge">N2</span>'
                : (r.voltage_level || '—');
+    const fmtCop = v => { const n = parseFloat(v); return isNaN(n)||n===0 ? '—' : '$' + n.toLocaleString('es-CO',{maximumFractionDigits:0}); };
+    const ec   = parseFloat(r.equipment_cost);
+    const ac   = parseFloat(r.acquisition_cost);
+    const ei   = parseFloat(r.equipment_interest);
+    const tec  = parseFloat(r.total_equipment_cost);
+    const ic   = parseFloat(r.installation_cost);
+    const fee  = parseFloat(r.installation_fee);
+    const rent = parseFloat(r.monthly_renting_cost);
+    const hasRent = !isNaN(rent) && rent > 0;
+    const assetMap = {user:'Usuario', or:'Oper. Red', shared:'Compartido'};
+    const assetLabel = assetMap[r.asset_ownership] || (r.asset_ownership || '—');
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td><a href="${r._link||'#'}" target="_blank" style="color:var(--blue);font-weight:500;text-decoration:none">${r._dealName}</a></td>
       <td style="font-size:11px;color:var(--muted)">${r._etapa}</td>
       <td style="font-size:11px">${r._kam}</td>
       <td>
-        <div style="font-weight:500;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(r.meter_name||'').replace(/"/g,"'")}">${r.meter_name||'—'}</div>
+        <div style="font-weight:500;max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${(r.meter_name||'').replace(/"/g,"'")}">${r.meter_name||'—'}</div>
         <div style="font-size:10px;color:var(--muted)">${r.meter_id||''}</div>
       </td>
-      <td style="font-size:11px;color:var(--muted)">${r.meter_id||'—'}</td>
       <td>${r.city||'—'}</td>
       <td>${r.state||'—'}</td>
       <td style="font-weight:600;color:var(--blue)">${r.grid_operator||'—'}</td>
+      <td style="font-size:11px">${r.current_provider||'—'}</td>
       <td class="num">${!isNaN(kwh) ? kwh.toLocaleString('es-CO',{maximumFractionDigits:1}) : '—'}</td>
       <td class="num">${!isNaN(pb) && pb > 0 ? pb.toFixed(1) : '—'}</td>
       <td>${mktL}</td>
-      <td>${volt}</td>`;
+      <td>${volt}</td>
+      <td class="num">${r.factor||'—'}</td>
+      <td>${assetLabel}</td>
+      <td class="num">${fmtCop(ic)}</td>
+      <td class="num">${fmtCop(ec)}</td>
+      <td class="num">${fmtCop(ac)}</td>
+      <td class="num">${fmtCop(ei)}</td>
+      <td class="num">${fmtCop(tec)}</td>
+      <td class="num">${fmtCop(fee)}</td>
+      <td style="text-align:center">${hasRent ? '<span style="color:var(--green);font-weight:700">Sí</span>' : '<span style="color:var(--muted)">No</span>'}</td>
+      <td class="num">${hasRent ? fmtCop(rent) : '—'}</td>`;
     tbody.appendChild(tr);
   });
 
@@ -1921,21 +2113,40 @@ function downloadAllFronterasExcel() {
 
   // Detail sheet
   const headers = ['Deal', 'Etapa', 'KAM', 'Frontera / Sede', 'ID Medidor',
-                   'Ciudad', 'Departamento', 'Operador de Red',
-                   'Consumo (kWh/mes)', 'Payback (meses)', 'Mercado', 'Tensión', 'ID Frontera'];
+                   'Ciudad', 'Departamento', 'Operador de Red', 'Comercializador actual',
+                   'Consumo (kWh/mes)', 'Payback (meses)', 'Mercado', 'Nivel Tensión',
+                   'Factor', 'Propiedad Activos',
+                   'Costo Instalación', 'Costo Equipos', 'Costo Adquisición',
+                   'Costo Intereses', 'Equipos + Intereses', 'Inversión Cliente',
+                   'Tiene Renting', 'Costo Mensual Renting', 'ID Frontera'];
+  const fmtN = v => { const n = parseFloat(v); return isNaN(n) ? '' : n; };
+  const assetMap2 = {user:'Usuario', or:'Operador de Red', shared:'Compartido'};
   const data = rows.map(r => {
-    const kwh = parseFloat(r.average_monthly_kwh);
-    const pb  = parseFloat(r.payback_meter);
-    const mkt = r.market_type === 'regulated' ? 'Regulado' : r.market_type === 'non-regulated' ? 'No Regulado' : (r.market_type||'');
+    const kwh  = parseFloat(r.average_monthly_kwh);
+    const pb   = parseFloat(r.payback_meter);
+    const rent = parseFloat(r.monthly_renting_cost);
+    const mkt  = r.market_type === 'regulated' ? 'Regulado' : r.market_type === 'non-regulated' ? 'No Regulado' : (r.market_type||'');
     const volt = r.voltage_level === 'level_1' ? 'Nivel 1' : r.voltage_level === 'level_2' ? 'Nivel 2' : (r.voltage_level||'');
-    return [r._dealName, r._etapa, r._kam, r.meter_name||'', r.meter_id||'',
-            r.city||'', r.state||'', r.grid_operator||'',
-            !isNaN(kwh)?kwh:'', !isNaN(pb)&&pb>0?parseFloat(pb.toFixed(2)):'',
-            mkt, volt, r.frontera_id||r.id||''];
+    return [
+      r._dealName, r._etapa, r._kam, r.meter_name||'', r.meter_id||'',
+      r.city||'', r.state||'', r.grid_operator||'', r.current_provider||'',
+      !isNaN(kwh)?kwh:'', !isNaN(pb)&&pb>0?parseFloat(pb.toFixed(2)):'',
+      mkt, volt, r.factor||'', assetMap2[r.asset_ownership]||(r.asset_ownership||''),
+      fmtN(r.installation_cost), fmtN(r.equipment_cost), fmtN(r.acquisition_cost),
+      fmtN(r.equipment_interest), fmtN(r.total_equipment_cost), fmtN(r.installation_fee),
+      (!isNaN(rent)&&rent>0)?'Sí':'No', (!isNaN(rent)&&rent>0)?rent:'',
+      r.frontera_id||r.id||''
+    ];
   });
   const wsDetail = XLSX.utils.aoa_to_sheet([headers, ...data]);
-  wsDetail['!cols'] = [{wch:35},{wch:25},{wch:30},{wch:35},{wch:18},
-                       {wch:20},{wch:20},{wch:25},{wch:18},{wch:16},{wch:14},{wch:10},{wch:18}];
+  wsDetail['!cols'] = [
+    {wch:35},{wch:22},{wch:28},{wch:35},{wch:16},
+    {wch:18},{wch:18},{wch:22},{wch:25},
+    {wch:16},{wch:14},{wch:12},{wch:12},
+    {wch:10},{wch:16},
+    {wch:16},{wch:16},{wch:16},{wch:16},{wch:18},{wch:16},
+    {wch:12},{wch:18},{wch:18}
+  ];
   XLSX.utils.book_append_sheet(wb, wsDetail, 'Fronteras');
 
   XLSX.writeFile(wb, `Fronteras_Pipeline_Bia_${new Date().toISOString().slice(0,10)}.xlsx`);
